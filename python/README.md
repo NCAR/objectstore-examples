@@ -1,7 +1,7 @@
 # python objectstore examples
 
  * boto3 [src](https://github.com/boto/boto3) [doc](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
- * [rda-object-storage](https://github.com/NCAR/rda-object-storage)
+ * [isd-s3](https://github.com/NCAR/isd-s3)
 
 ## Development
 
