@@ -9,6 +9,9 @@
 
     // grapes can't handle bom without a JAR
     //@Grab('software.amazon.awssdk:bom:2.14.9'),
+    @Grab(group='software.amazon.awssdk', module='bom', version='2.14.9', type='pom'),
+    @Grab(group='software.amazon.awssdk', module='s3', version='2.14.9'),
+
     // so we get it all (big and slow!)
     @Grab('software.amazon.awssdk:aws-sdk-java:2.14.9'),
 
@@ -21,8 +24,9 @@ import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.utils.Md5Utils
 import software.amazon.awssdk.core.sync.RequestBody
 import com.twmacinta.util.MD5
+import com.twmacinta.util.MD5InputStream
 
-println 'hi'
+com.twmacinta.util.MD5.initNativeLibrary(true)  // true: disable MD5.so; it's supposed to be faster but doesn't seem so
 
 endpoint = 'https://stratus.ucar.edu'.toURI()
 
@@ -78,24 +82,36 @@ partSize = 5L*1024*1024*1024 // 5GB
 println "partSize = $partSize"
 fileSize = file.size()
 println "fileSize = $fileSize"
+
+println ''
+
 uploadPartRequest = UploadPartRequest.builder().bucket(bucketName).key(keyName)
         .uploadId(uploadId)
         .partNumber(0).build();
 startByte=0L
 partNumber=1
 while (startByte<fileSize) {
-    endByte=startByte+partSize-1L
-    if (endByte > fileSize) endByte=fileSize-1L
-    println "part $partNumber = $startByte .. $endByte"
+    currPartSize=partSize
+    if (startByte+currPartSize > fileSize) currPartSize = fileSize-startByte
+    println "part $partNumber start $startByte size $currPartSize"
+
+    // use MD5InputStream to get hash of each part
+    // aws-sdk has ChecksumCalculatingInputStream with reset() but it's slower
+    // BufferedInputStream is much slower
+    is = new MD5InputStream(new FileInputStream(file))
+    is.skip(startByte)
 
     startInstant=Instant.now()
     uploadPartRequest = uploadPartRequest.toBuilder().partNumber(partNumber).build()
-    is = new FileInputStream(file)  // can we re-use this (is this all sequential and synchronous?)
-    is.skip(startByte)
-    reqBody = RequestBody.fromInputStream(is,endByte-startByte+1L)
+    reqBody = RequestBody.fromInputStream(is,currPartSize)
     etag = s3.uploadPart(uploadPartRequest,reqBody).eTag();
-    completedParts << CompletedPart.builder().partNumber(partNumber).eTag(etag).build()
     println "etag = $etag"
+    parthash = is.MD5.asHex()
+    println "part MD5 = $parthash"
+    if (parthash == etag[1..-2])    // strip quotes '"etag"'
+      println "MD5==etag"
+    else println "part MD5 $parthash != returned etag $etag"
+    completedParts << CompletedPart.builder().partNumber(partNumber).eTag(etag).build()
 
     endInstant=Instant.now()
     dur=Duration.between(startInstant,endInstant)
@@ -103,10 +119,12 @@ while (startByte<fileSize) {
     println "part $partNumber complete after $dursec seconds"
     println ''
 
-    startByte+=partSize
+    startByte+=currPartSize
     partNumber++
 }
 uploadPartRequest = null
+is.close()
+is=null
 
 completedMultipartUpload = CompletedMultipartUpload.builder().
     parts(completedParts).
@@ -122,9 +140,6 @@ dur=Duration.between(startInstant,endInstant)
 dursec = dur.seconds + dur.nano/1000000000
 println "completeMultipartUpload after $dursec seconds"
 println response
-
-// this etag is something different
-//assert response.eTag()[1..-2]==digestHexStr
 
 completedMultipartUpload = null
 completeMultipartUploadRequest = null
