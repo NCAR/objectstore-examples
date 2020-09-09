@@ -6,10 +6,13 @@
 @Grapes([
     @Grab(group='org.slf4j', module='slf4j-simple', version='1.7.30'),
 
-    // grapes can't handle bom without a JAR
-    //@Grab('software.amazon.awssdk:bom:2.14.9'),
-    // so we get it all (big and slow!)
-    @Grab('software.amazon.awssdk:aws-sdk-java:2.14.9'),
+    // grapes can't handle bom without a JAR, workaround with redundant spec for .pom
+    @Grab(group='software.amazon.awssdk', module='bom', version='2.14.9', type='pom'),
+    @Grab(group='software.amazon.awssdk', module='s3', version='2.14.9'),
+
+    // or we can get it all (big and slow!)
+    //@Grab('software.amazon.awssdk:aws-sdk-java:2.14.9'),
+
     ])
 
 import software.amazon.awssdk.services.s3.model.*
