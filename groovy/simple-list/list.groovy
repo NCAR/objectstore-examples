@@ -42,12 +42,25 @@ println "v2 list $bucketName:\n"
 listObjects = ListObjectsV2Request.builder().bucket(bucketName).build()
 response = s3.listObjectsV2(listObjects)
 objects = response.contents()
-objects.eachWithIndex { it, i ->
- println "$i isa ${it.getClass()}"
- println it
- println "key = ${it.key}"
- println "size = ${it.size}"
- println "size via value = " + it.getValueForField('Size',Object).get()
+objects.eachWithIndex { obj, i ->
+ println "$i isa ${obj.getClass()}"
+ println obj
+ println "key = ${obj.key}"
+ println "size = ${obj.size}"
+ println "size via value = " + obj.getValueForField('Size',Object).get()
  println ''
-}
 
+ headObjectRequest = HeadObjectRequest.builder().bucket(bucketName).key(obj.key).build()
+ hoResponse = s3.headObject(headObjectRequest)
+ println "etag = " + hoResponse.eTag()
+ println "contentLength = " + hoResponse.contentLength()
+ println "lastModified = " + hoResponse.lastModified()
+ println "fields = "
+ hoResponse.sdkFields().eachWithIndex { field, fieldNum ->
+    println "  $fieldNum: " + field.location +
+        ' ' + field.locationName() +
+        ' = ' + field.getValueOrDefault(hoResponse)
+ }
+
+ println '\n---\n'
+}
